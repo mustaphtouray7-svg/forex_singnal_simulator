@@ -122,7 +122,8 @@ def start_background_monitor() -> threading.Thread:
 
 # Keep the scanner alive across Streamlit script reruns. It runs in the same
 # service process and therefore shares the dashboard's SQLite database.
-start_background_monitor()
+if not storage.using_postgres():
+    start_background_monitor()
 
 instruments_by_symbol = {
     instrument["provider_symbol"]: instrument for instrument in instruments
@@ -1099,25 +1100,34 @@ with settings_tab:
         "SQLite data is on an ephemeral filesystem and may be lost after restart "
         "or redeploy. Durable storage and always-on monitoring are not yet configured."
     )
-    st.subheader("Free backup and recovery")
-    st.caption(
-        "Download a copy of the current SQLite database before redeploying or "
-        "making major changes. This is a manual backup, not cloud persistence."
-    )
-    try:
-        _db_path = Path(storage.get_database_path())
-        if _db_path.exists():
-            st.download_button(
-                "Download SQLite backup",
-                data=_db_path.read_bytes(),
-                file_name="forex_signal_lab_backup.sqlite3",
-                mime="application/vnd.sqlite3",
-                help="Keep this file somewhere private. It may contain your paper-trading history."
-            )
-        else:
-            st.info("The database file is not available for download yet.")
-    except OSError as exc:
-        st.warning(f"Could not prepare the database backup: {exc}")
+    st.subheader("Storage and backups")
+    if storage.using_postgres():
+        st.success("Shared PostgreSQL storage is configured. The dashboard and scheduled scanner use the same database.")
+        st.caption(
+            "The database provider controls backups and retention. Check its dashboard "
+            "regularly and export a backup before major changes. The database connection "
+            "string must remain private."
+        )
+    else:
+        st.warning(
+            "Temporary SQLite storage is active. On hosted free services, saved data can "
+            "be lost after a restart, sleep, or redeployment. Configure "
+            "FOREX_SIGNAL_DATABASE_URL to use shared PostgreSQL storage."
+        )
+        try:
+            _db_path = Path(storage.get_database_path())
+            if _db_path.exists():
+                st.download_button(
+                    "Download SQLite backup",
+                    data=_db_path.read_bytes(),
+                    file_name="forex_signal_lab_backup.sqlite3",
+                    mime="application/vnd.sqlite3",
+                    help="Keep this file somewhere private. It may contain your paper-trading history."
+                )
+            else:
+                st.info("The local database file is not available for download yet.")
+        except OSError as exc:
+            st.warning(f"Could not prepare the database backup: {exc}")
 
     st.subheader("Recent system events")
     if events:
