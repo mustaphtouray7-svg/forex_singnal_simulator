@@ -1071,10 +1071,11 @@ with settings_tab:
         + (most_recent_scan["created_at"] if most_recent_scan else "No completed scan recorded")
     )
     st.caption(
-        "For recurring scans, run the separate monitor process with "
-        "`python monitor.py`. That process must remain running; Streamlit alone "
-        "does not keep monitoring active. A local process is not a 24/7 hosted "
-        "deployment."
+        "The dashboard starts a background scanner in this service process. "
+        "Scans run only while the hosted instance is awake; the free hosting "
+        "plan can sleep and does not guarantee continuous 24/7 monitoring. "
+        "SQLite data is on an ephemeral filesystem and may be lost after restart "
+        "or redeploy. Durable storage and always-on monitoring are not yet configured."
     )
     st.subheader("Recent system events")
     if events:
