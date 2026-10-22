@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any, Dict
 
@@ -18,6 +19,7 @@ from market_analysis import (
     market_data_freshness,
 )
 from market_data import fetch_prices, provider_data_source
+from monitor import scan_once
 from notifications import maybe_send_alert_notification
 from paper_trading import revalidate_alert
 from settings import DEFAULT_SETTINGS_PATH, load_settings, save_settings
@@ -49,6 +51,56 @@ except (OSError, ValueError) as exc:
     LOGGER.exception("Could not initialize the application")
     st.error(f"Configuration or local database initialization failed: {exc}")
     st.stop()
+
+
+@st.cache_resource(show_spinner=False)
+def start_background_monitor() -> threading.Thread:
+    """Start one recurring scanner per Streamlit server process.
+
+    The scanner shares this service's SQLite database with the dashboard.
+    Render's free filesystem is ephemeral, so this does not make data durable
+    across service restarts or deployments.
+    """
+    stop_event = threading.Event()
+
+    def monitor_loop() -> None:
+        while not stop_event.is_set():
+            try:
+                current_settings = load_settings(DEFAULT_SETTINGS_PATH)
+                registry = load_instruments(ROOT / "config" / "instruments.json")
+                storage.init_db(
+                    initial_balance=float(current_settings["initial_paper_balance"])
+                )
+                counts = scan_once(current_settings, registry)
+                LOGGER.info("Background market scan completed: %s", counts)
+            except Exception as exc:
+                LOGGER.exception("Background market scan failed")
+                try:
+                    storage.log_system_event(
+                        "ERROR", "background_monitor",
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                except Exception:
+                    LOGGER.exception("Could not record background monitor failure")
+            try:
+                interval = max(
+                    60, int(load_settings(DEFAULT_SETTINGS_PATH)["monitor_interval_seconds"])
+                )
+            except Exception:
+                interval = 900
+            if stop_event.wait(interval):
+                break
+
+    worker = threading.Thread(
+        target=monitor_loop, name="forex-signal-background-monitor", daemon=True
+    )
+    worker.start()
+    return worker
+
+
+# Keep the scanner alive across Streamlit script reruns. It runs in the same
+# service process and therefore shares the dashboard's SQLite database.
+start_background_monitor()
 
 instruments_by_symbol = {
     instrument["provider_symbol"]: instrument for instrument in instruments
