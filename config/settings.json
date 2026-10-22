@@ -1,0 +1,24 @@
+{
+  "initial_paper_balance": 10000.0,
+  "estimated_transaction_cost_bps": 2.0,
+  "risk_per_trade_pct": 1.0,
+  "max_total_open_risk_pct": 3.0,
+  "max_open_positions": 5,
+  "fast_ema": 20,
+  "slow_ema": 50,
+  "rsi_period": 14,
+  "atr_period": 14,
+  "monitor_interval_seconds": 900,
+  "requests_per_minute": 20,
+  "monitor_timeframes": ["1d", "60m"],
+  "monitor_lookbacks": {"1d": "2y", "60m": "1mo"},
+  "watchlist": [
+    "EURUSD=X",
+    "GBPUSD=X",
+    "JPY=X",
+    "GC=F",
+    "^GSPC",
+    "BTC-USD",
+    "CL=F"
+  ]
+}
