@@ -14,10 +14,33 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Open `http://127.0.0.1:8501`. The checked-in Streamlit configuration binds to
-localhost because the app has no user authentication. Stop it with `Ctrl+C`.
+Before starting the app locally, set a private access code in that
+PowerShell window (choose your own value and do not commit it):
+
+```powershell
+$env:FOREX_SIGNAL_ACCESS_CODE = 'choose-a-private-code'
+.\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+Open `http://127.0.0.1:8501` and enter the code. Stop the app with `Ctrl+C`.
 The app stores its SQLite database in `data/forex_signal_lab.sqlite3`; that
 runtime data is git-ignored.
+
+## Hosted free deployment
+
+The Render deployment uses the `FOREX_SIGNAL_ACCESS_CODE` environment variable
+for a shared access-code gate. Keep the code private; this is a shared gate,
+not separate user accounts or role-based access control. The Settings & system
+page provides a manual SQLite backup download. Download backups regularly and
+store them privately.
+
+Render's free web service can sleep when idle. Its local filesystem is
+ephemeral, so saved alerts, paper trades, and settings may be lost when the
+service restarts or redeploys. The current hosted app does not have a durable
+database or a separate always-on monitoring worker. The in-dashboard scanner
+is best-effort only while the web process is awake; it is not guaranteed to run
+24/7. No paid resources are configured. These limits cannot be removed reliably
+without a separate durable storage/compute arrangement.
 
 Run the full test suite:
 
