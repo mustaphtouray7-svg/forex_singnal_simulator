@@ -48,7 +48,8 @@ def load_settings(path: Union[str, Path] = DEFAULT_SETTINGS_PATH) -> Dict[str, A
     else:
         with Path(path).open(encoding="utf-8") as settings_file:
             settings = json.load(settings_file)
-    if not isinstance(settings, dict):        raise ValueError("Settings must be a JSON object.")
+    if not isinstance(settings, dict):
+        raise ValueError("Settings must be a JSON object.")
     missing = REQUIRED_KEYS - settings.keys()
     if missing:
         raise ValueError("Settings are missing: " + ", ".join(sorted(missing)))
