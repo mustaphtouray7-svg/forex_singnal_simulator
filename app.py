@@ -1093,13 +1093,21 @@ with settings_tab:
         "**Last monitor scan:** "
         + (most_recent_scan["created_at"] if most_recent_scan else "No completed scan recorded")
     )
-    st.caption(
-        "The dashboard starts a background scanner in this service process. "
-        "Scans run only while the hosted instance is awake; the free hosting "
-        "plan can sleep and does not guarantee continuous 24/7 monitoring. "
-        "SQLite data is on an ephemeral filesystem and may be lost after restart "
-        "or redeploy. Durable storage and always-on monitoring are not yet configured."
-    )
+    if storage.using_postgres():
+        st.caption(
+            "The dashboard uses shared PostgreSQL storage. A GitHub Actions workflow "
+            "is configured to run scheduled scans independently of the dashboard. "
+            "Scheduled workflows can be delayed or skipped, so this is best-effort "
+            "monitoring rather than guaranteed 24/7 uptime."
+        )
+    else:
+        st.caption(
+            "The dashboard's local scanner is only a fallback while PostgreSQL is "
+            "not configured. Render's free service can sleep and its local SQLite "
+            "file is ephemeral. Set FOREX_SIGNAL_DATABASE_URL in Render and add the "
+            "same connection string as a GitHub Actions secret to enable shared storage "
+            "and scheduled scans."
+        )
     st.subheader("Storage and backups")
     if storage.using_postgres():
         st.success("Shared PostgreSQL storage is configured. The dashboard and scheduled scanner use the same database.")
