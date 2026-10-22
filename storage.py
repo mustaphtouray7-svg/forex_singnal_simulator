@@ -2,6 +2,7 @@ import json
 import math
 import os
 import sqlite3
+import re
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -13,13 +14,129 @@ DEFAULT_DATABASE_PATH = ROOT / "data" / "forex_signal_lab.sqlite3"
 ALERT_STATUSES = {"pending", "approved", "rejected", "paper_traded", "stale"}
 
 
+def using_postgres() -> bool:
+    return bool(os.environ.get("FOREX_SIGNAL_DATABASE_URL") or os.environ.get("DATABASE_URL"))
+
+
 def _database_path(path: Optional[Union[str, Path]] = None) -> Path:
     configured = path or os.environ.get("FOREX_SIGNAL_DB_PATH") or DEFAULT_DATABASE_PATH
     return Path(configured)
 
 
 def get_database_path() -> Path:
+    if using_postgres():
+        raise RuntimeError("The database is hosted in PostgreSQL; there is no local SQLite file.")
     return _database_path()
+
+
+class _PgCursor:
+    def __init__(self, cursor: Any, cached_row: Any = None, lastrowid: Any = None):
+        self._cursor = cursor
+        self._cached_row = cached_row
+        self.lastrowid = lastrowid
+        self.rowcount = cursor.rowcount
+
+    def fetchone(self):
+        if self._cached_row is not None:
+            row, self._cached_row = self._cached_row, None
+            return row
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if self._cached_row is not None:
+            rows.insert(0, self._cached_row)
+            self._cached_row = None
+        return rows
+
+
+class _PgConnection:
+    """Small DB-API adapter for the SQLite-compatible SQL used in this project."""
+    def __init__(self, connection: Any):
+        self._connection = connection
+
+    def execute(self, sql: str, parameters: Any = ()):
+        stripped = sql.strip()
+        if stripped.upper().startswith("PRAGMA TABLE_INFO("):
+            table = stripped[stripped.find("(") + 1:stripped.rfind(")")].strip().strip("'\\\"")
+            cur = self._connection.execute(
+                "SELECT column_name AS name FROM information_schema.columns "
+                "WHERE table_schema = current_schema() AND table_name = %s ORDER BY ordinal_position",
+                (table,),
+            )
+            return cur
+        ignore_insert = bool(re.match(r"(?is)^INSERT\\s+OR\\s+IGNORE\\s+INTO\\s+", stripped))
+        if ignore_insert:
+            sql = re.sub(r"(?is)^INSERT\\s+OR\\s+IGNORE\\s+INTO", "INSERT INTO", sql, count=1)
+            sql = sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
+        sql = re.sub(r"(?is)\\bINTEGER\\s+PRIMARY\\s+KEY\\b", "BIGSERIAL PRIMARY KEY", sql)
+        sql = sql.replace("?", "%s")
+        is_insert = bool(re.match(r"(?is)^\\s*INSERT\\s+INTO\\s+", sql))
+        if is_insert and " RETURNING " not in sql.upper():
+            sql = sql.rstrip().rstrip(";") + " RETURNING id"
+        cur = self._connection.cursor()
+        cur.execute(sql, parameters)
+        cached = None
+        lastrowid = None
+        if is_insert and cur.description is not None:
+            cached = cur.fetchone()
+            if cached is not None:
+                lastrowid = cached["id"] if isinstance(cached, dict) else cached[0]
+        return _PgCursor(cur, cached, lastrowid)
+
+    def executescript(self, script: str):
+        for statement in script.split(";"):
+            if statement.strip():
+                self.execute(statement)
+        return None
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+
+@contextmanager
+def _connect(path: Optional[Union[str, Path]] = None):
+    database_url = os.environ.get("FOREX_SIGNAL_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    if database_url and path is None:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("PostgreSQL support requires psycopg[binary].") from exc
+        raw = psycopg.connect(database_url, row_factory=dict_row, connect_timeout=10)
+        connection = _PgConnection(raw)
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+        return
+
+    database_path = _database_path(path)
+    if str(database_path) != ":memory:":
+        database_path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(str(database_path), timeout=10)
+    try:
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
+        if str(database_path) != ":memory:":
+            connection.execute("PRAGMA journal_mode = WAL")
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def _utc_now() -> str:
