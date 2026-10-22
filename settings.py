@@ -26,11 +26,29 @@ REQUIRED_KEYS = {
 }
 
 
+
+def _load_database_settings() -> Dict[str, Any] | None:
+    if not (os.environ.get("FOREX_SIGNAL_DATABASE_URL") or os.environ.get("DATABASE_URL")):
+        return None
+    import storage
+    return storage.load_app_settings()
+
+
+def _save_database_settings(settings: Dict[str, Any]) -> bool:
+    if not (os.environ.get("FOREX_SIGNAL_DATABASE_URL") or os.environ.get("DATABASE_URL")):
+        return False
+    import storage
+    storage.save_app_settings(settings)
+    return True
+
 def load_settings(path: Union[str, Path] = DEFAULT_SETTINGS_PATH) -> Dict[str, Any]:
-    with Path(path).open(encoding="utf-8") as settings_file:
-        settings: Any = json.load(settings_file)
-    if not isinstance(settings, dict):
-        raise ValueError("Settings must be a JSON object.")
+    database_settings = _load_database_settings()
+    if database_settings is not None:
+        settings = database_settings
+    else:
+        with Path(path).open(encoding="utf-8") as settings_file:
+            settings = json.load(settings_file)
+    if not isinstance(settings, dict):        raise ValueError("Settings must be a JSON object.")
     missing = REQUIRED_KEYS - settings.keys()
     if missing:
         raise ValueError("Settings are missing: " + ", ".join(sorted(missing)))
@@ -141,6 +159,9 @@ def load_settings(path: Union[str, Path] = DEFAULT_SETTINGS_PATH) -> Dict[str, A
 def save_settings(
     settings: Dict[str, Any], path: Union[str, Path] = DEFAULT_SETTINGS_PATH
 ) -> None:
+    if _save_database_settings(settings):
+        load_settings(path)
+        return
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary_path = None
