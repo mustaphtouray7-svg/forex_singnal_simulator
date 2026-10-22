@@ -37,6 +37,28 @@ TIMEFRAMES = {
 }
 
 st.set_page_config(page_title="Forex Signal Lab", page_icon="📊", layout="wide")
+
+# Lightweight single shared access-code gate for public hosting. The code must
+# be configured as a Render environment variable and is never stored in Git.
+_access_code = os.environ.get("FOREX_SIGNAL_ACCESS_CODE", "").strip()
+if not _access_code:
+    st.error("Access protection is not configured. Set FOREX_SIGNAL_ACCESS_CODE in the hosting environment.")
+    st.stop()
+if not st.session_state.get("access_granted", False):
+    st.title("Forex Signal Lab — Sign in")
+    st.caption("Enter the private access code supplied by the project owner.")
+    with st.form("access-code-form"):
+        _entered_code = st.text_input("Access code", type="password")
+        _submitted = st.form_submit_button("Unlock dashboard", type="primary")
+    if _submitted:
+        import hmac
+        if hmac.compare_digest(_entered_code, _access_code):
+            st.session_state["access_granted"] = True
+            st.rerun()
+        else:
+            st.error("Access code not recognised.")
+    st.stop()
+
 st.title("Forex Signal Lab")
 st.caption(
     "Multi-market analysis and simulated trading only. No broker connection "
@@ -1077,6 +1099,26 @@ with settings_tab:
         "SQLite data is on an ephemeral filesystem and may be lost after restart "
         "or redeploy. Durable storage and always-on monitoring are not yet configured."
     )
+    st.subheader("Free backup and recovery")
+    st.caption(
+        "Download a copy of the current SQLite database before redeploying or "
+        "making major changes. This is a manual backup, not cloud persistence."
+    )
+    try:
+        _db_path = Path(storage.get_database_path())
+        if _db_path.exists():
+            st.download_button(
+                "Download SQLite backup",
+                data=_db_path.read_bytes(),
+                file_name="forex_signal_lab_backup.sqlite3",
+                mime="application/vnd.sqlite3",
+                help="Keep this file somewhere private. It may contain your paper-trading history."
+            )
+        else:
+            st.info("The database file is not available for download yet.")
+    except OSError as exc:
+        st.warning(f"Could not prepare the database backup: {exc}")
+
     st.subheader("Recent system events")
     if events:
         st.dataframe(pd.DataFrame(events), hide_index=True, use_container_width=True)
