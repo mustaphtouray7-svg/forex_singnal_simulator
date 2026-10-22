@@ -13,10 +13,16 @@ class AppSmokeTests(unittest.TestCase):
         app_path = Path(__file__).parents[1] / "app.py"
         with tempfile.TemporaryDirectory() as directory:
             database_path = str(Path(directory) / "dashboard.sqlite3")
-            with patch.dict(os.environ, {"FOREX_SIGNAL_DB_PATH": database_path}), patch(
-                "market_data.fetch_prices", return_value=pd.DataFrame()
-            ):
-                app = AppTest.from_file(str(app_path)).run(timeout=30)
+            with patch.dict(
+                os.environ,
+                {
+                    "FOREX_SIGNAL_DB_PATH": database_path,
+                    "FOREX_SIGNAL_ACCESS_CODE": "test-only-access-code",
+                },
+            ), patch("market_data.fetch_prices", return_value=pd.DataFrame()):
+                app = AppTest.from_file(str(app_path))
+                app.session_state["access_granted"] = True
+                app.run(timeout=30)
 
         self.assertEqual(len(app.exception), 0)
         self.assertTrue(
