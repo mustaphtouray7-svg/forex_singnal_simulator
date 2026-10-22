@@ -219,6 +219,11 @@ def init_db(
                 balance REAL NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS app_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                settings_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS paper_trades (
                 id INTEGER PRIMARY KEY,
                 alert_id INTEGER NOT NULL UNIQUE REFERENCES alerts(id),
@@ -264,6 +269,31 @@ def init_db(
             VALUES (1, ?, ?, ?)
             """,
             (initial_balance, initial_balance, _utc_now()),
+        )
+
+
+def load_app_settings() -> Optional[Dict[str, Any]]:
+    init_db()
+    with _connect() as connection:
+        row = connection.execute(
+            "SELECT settings_json FROM app_settings WHERE id = 1"
+        ).fetchone()
+    return json.loads(row["settings_json"]) if row else None
+
+
+def save_app_settings(settings: Dict[str, Any]) -> None:
+    init_db()
+    payload = json.dumps(settings, sort_keys=True)
+    with _connect() as connection:
+        connection.execute(
+            """
+            INSERT INTO app_settings (id, settings_json, updated_at)
+            VALUES (1, ?, ?)
+            ON CONFLICT (id) DO UPDATE SET
+                settings_json = EXCLUDED.settings_json,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (payload, _utc_now()),
         )
 
 
