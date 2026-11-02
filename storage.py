@@ -130,10 +130,17 @@ class _PgConnection:
                 (table,),
             )
             return cur
-        ignore_insert = bool(re.match(r"(?is)^INSERT\s+OR\s+IGNORE\s+INTO\s+", stripped))
-        if ignore_insert:
-            sql = re.sub(r"(?is)^INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", sql, count=1)
-            sql = sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
+        # Translate SQLite's INSERT OR IGNORE into PostgreSQL syntax.
+        # Search beyond leading whitespace/comments to avoid passing the
+        # SQLite-only clause through to psycopg.
+        translated_sql, ignore_count = re.subn(
+            r"(?is)\\bINSERT\\s+OR\\s+IGNORE\\s+INTO\\b",
+            "INSERT INTO",
+            sql,
+            count=1,
+        )
+        if ignore_count:
+            sql = translated_sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
         sql = re.sub(r"(?is)\bINTEGER\s+PRIMARY\s+KEY\b", "BIGSERIAL PRIMARY KEY", sql)
         sql = sql.replace("?", "%s")
         is_insert = bool(re.match(r"(?is)^\s*INSERT\s+INTO\s+", sql))
