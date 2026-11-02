@@ -162,7 +162,7 @@ class _PgConnection:
     def executescript(self, script: str):
         # PostgreSQL REAL is only 32-bit; preserve the precision expected
         # by prices, account balances, quantities and P/L calculations.
-        script = re.sub(r"(?i)\\bREAL\\b", "DOUBLE PRECISION", script)
+        script = re.sub(r"(?i)\bREAL\b", "DOUBLE PRECISION", script)
         for statement in script.split(";"):
             if statement.strip():
                 self.execute(statement)
