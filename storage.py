@@ -4,6 +4,7 @@ import os
 import sqlite3
 import re
 import tempfile
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -13,6 +14,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 ROOT = Path(__file__).resolve().parent
 DEFAULT_DATABASE_PATH = ROOT / "data" / "forex_signal_lab.sqlite3"
 ALERT_STATUSES = {"pending", "approved", "rejected", "paper_traded", "stale"}
+_PG_SCHEMA_INITIALIZED = False
+_PG_SCHEMA_LOCK = threading.Lock()
 
 
 def using_postgres() -> bool:
@@ -157,6 +160,9 @@ class _PgConnection:
         return _PgCursor(cur, cached, lastrowid)
 
     def executescript(self, script: str):
+        # PostgreSQL REAL is only 32-bit; preserve the precision expected
+        # by prices, account balances, quantities and P/L calculations.
+        script = re.sub(r"(?i)\\bREAL\\b", "DOUBLE PRECISION", script)
         for statement in script.split(";"):
             if statement.strip():
                 self.execute(statement)
@@ -216,6 +222,23 @@ def _utc_now() -> str:
 
 
 def init_db(
+    path: Optional[Union[str, Path]] = None, initial_balance: float = 10_000.0
+) -> None:
+    """Initialise the schema; cache successful PostgreSQL setup per process."""
+    global _PG_SCHEMA_INITIALIZED
+    if using_postgres() and path is None:
+        if _PG_SCHEMA_INITIALIZED:
+            return
+        with _PG_SCHEMA_LOCK:
+            if _PG_SCHEMA_INITIALIZED:
+                return
+            _init_db_impl(path, initial_balance)
+            _PG_SCHEMA_INITIALIZED = True
+        return
+    _init_db_impl(path, initial_balance)
+
+
+def _init_db_impl(
     path: Optional[Union[str, Path]] = None, initial_balance: float = 10_000.0
 ) -> None:
     if initial_balance <= 0:
