@@ -305,7 +305,7 @@ with overview:
                 "Freshness": latest_row["freshness"] if latest_row else "—",
             }
         )
-    st.dataframe(pd.DataFrame(watchlist_rows), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(watchlist_rows), hide_index=True, width="stretch")
     st.caption(
         "Watchlist timestamps come from saved analyses. Rows may be historical "
         "until the monitor runs or each market is opened in the dashboard."
@@ -377,7 +377,7 @@ with markets:
             yaxis_title="Price",
             xaxis_rangeslider_visible=False,
         )
-        st.plotly_chart(chart, use_container_width=True)
+        st.plotly_chart(chart, width="stretch")
 
         rsi_chart = go.Figure()
         rsi_chart.add_trace(
@@ -385,7 +385,7 @@ with markets:
         )
         rsi_chart.add_hline(y=50, line_dash="dash", line_color="gray")
         rsi_chart.update_layout(height=220, yaxis_range=[0, 100], yaxis_title="RSI")
-        st.plotly_chart(rsi_chart, use_container_width=True)
+        st.plotly_chart(rsi_chart, width="stretch")
 
     with right:
         st.subheader("Latest analysis")
@@ -442,7 +442,7 @@ with markets:
     recent["Signal"] = recent["Signal"].map(
         {1: "Bullish", -1: "Bearish", 0: "No trade"}
     )
-    st.dataframe(recent.sort_index(ascending=False), use_container_width=True)
+    st.dataframe(recent.sort_index(ascending=False), width="stretch")
 
 with alerts_tab:
     st.subheader("Persisted signal alerts")
@@ -589,7 +589,7 @@ with alerts_tab:
                 ]
             ],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 with paper_tab:
@@ -682,7 +682,7 @@ with paper_tab:
                             "Estimated net P/L": "N/A",
                         }
                     )
-            st.dataframe(pd.DataFrame(marks), hide_index=True, use_container_width=True)
+            st.dataframe(pd.DataFrame(marks), hide_index=True, width="stretch")
         st.dataframe(
             pd.DataFrame(open_trades)[
                 [
@@ -700,7 +700,7 @@ with paper_tab:
                 ]
             ],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
         selected_trade_id = st.selectbox(
             "Position to close",
@@ -788,7 +788,7 @@ with paper_tab:
                 ]
             ],
             hide_index=True,
-            use_container_width=True,
+            width="stretch",
         )
 
 with backtest_tab:
@@ -847,7 +847,7 @@ with backtest_tab:
                 xaxis_title="Provider timestamp",
                 yaxis_title="Simulated account value",
             )
-            st.plotly_chart(equity_chart, use_container_width=True)
+            st.plotly_chart(equity_chart, width="stretch")
             export = analysis_frame.join(
                 simulation[["position", "strategy_return", "equity", "buy_hold_equity"]]
             )
@@ -1046,18 +1046,16 @@ with settings_tab:
     )
     if storage.using_postgres():
         st.caption(
-            "The dashboard uses shared PostgreSQL storage. A GitHub Actions workflow "
-            "is configured to run scheduled scans independently of the dashboard. "
-            "Scheduled workflows can be delayed or skipped, so this is best-effort "
-            "monitoring rather than guaranteed 24/7 uptime."
+            "The dashboard uses shared PostgreSQL storage. A hosted scheduled scanner "
+            "is not configured; recurring scans require monitor.py to run separately. "
+            "The dashboard does not guarantee 24/7 monitoring."
         )
     else:
         st.caption(
             "The dashboard's local scanner is only a fallback while PostgreSQL is "
             "not configured. Render's free service can sleep and its local SQLite "
-            "file is ephemeral. Set FOREX_SIGNAL_DATABASE_URL in Render and add the "
-            "same connection string as a GitHub Actions secret to enable shared storage "
-            "and scheduled scans."
+            "file is ephemeral. Set FOREX_SIGNAL_DATABASE_URL in Render to use shared "
+            "PostgreSQL storage. Recurring scans still require a separate monitor process."
         )
     st.subheader("Storage and backups")
     if storage.using_postgres():
@@ -1090,7 +1088,7 @@ with settings_tab:
 
     st.subheader("Recent system events")
     if events:
-        st.dataframe(pd.DataFrame(events), hide_index=True, use_container_width=True)
+        st.dataframe(pd.DataFrame(events), hide_index=True, width="stretch")
     st.markdown(
         """
 **Data caveats:** Yahoo Finance coverage and intraday lookback vary by symbol;
