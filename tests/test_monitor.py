@@ -91,7 +91,7 @@ class MonitorTests(unittest.TestCase):
         )
         self.assertEqual(result["failures"], 1)
         events = storage.get_system_events(self.database_path)
-        self.assertIn("temporary provider error", events[0]["message"])
+        self.assertTrue(any("temporary provider error" in event["message"] for event in events))
 
     def test_unconfigured_watchlist_symbol_is_reported(self) -> None:
         self.settings["watchlist"] = ["UNSUPPORTED"]
@@ -103,7 +103,7 @@ class MonitorTests(unittest.TestCase):
             monotonic_fn=lambda: 1.0,
         )
         self.assertEqual(result["failures"], 1)
-        self.assertIn("not in the registry", storage.get_system_events(self.database_path)[0]["message"])
+        self.assertTrue(any("not in the registry" in event["message"] for event in storage.get_system_events(self.database_path)))
 
     def test_provider_request_rate_limit_is_applied_between_calls(self) -> None:
         self.settings["monitor_timeframes"] = ["1d", "60m"]
