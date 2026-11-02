@@ -3,6 +3,7 @@ import math
 import os
 import sqlite3
 import re
+import tempfile
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -27,6 +28,67 @@ def get_database_path() -> Path:
     if using_postgres():
         raise RuntimeError("The database is hosted in PostgreSQL; there is no local SQLite file.")
     return _database_path()
+
+
+def create_sqlite_backup_bytes(path: Optional[Union[str, Path]] = None) -> bytes:
+    """Create a consistent SQLite backup, including committed WAL content."""
+    if using_postgres() and path is None:
+        raise RuntimeError("SQLite backups are unavailable when PostgreSQL is configured.")
+    database_path = _database_path(path)
+    if not database_path.exists():
+        init_db(database_path)
+    source = sqlite3.connect(str(database_path), timeout=10)
+    destination = sqlite3.connect(":memory:")
+    try:
+        source.backup(destination)
+        return destination.serialize()
+    finally:
+        destination.close()
+        source.close()
+
+
+def restore_sqlite_backup(
+    backup_bytes: bytes, path: Optional[Union[str, Path]] = None
+) -> None:
+    """Validate a backup and atomically replace the local SQLite database."""
+    if using_postgres() and path is None:
+        raise RuntimeError("SQLite restore is unavailable when PostgreSQL is configured.")
+    if not backup_bytes:
+        raise ValueError("The uploaded backup file is empty.")
+    database_path = _database_path(path)
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            prefix="forex-restore-", suffix=".sqlite3",
+            dir=str(database_path.parent), delete=False
+        ) as temporary_file:
+            temporary_file.write(backup_bytes)
+            temporary_path = Path(temporary_file.name)
+        check = sqlite3.connect(str(temporary_path))
+        try:
+            integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
+            if integrity != "ok":
+                raise ValueError("The uploaded file failed SQLite integrity checks.")
+            tables = {
+                row[0] for row in check.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            required = {"analysis_records", "alerts", "paper_account", "paper_trades"}
+            if not required.issubset(tables):
+                raise ValueError("The uploaded file is not a Forex Signal Lab database backup.")
+        finally:
+            check.close()
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(str(database_path) + suffix)
+            if sidecar.exists():
+                sidecar.unlink()
+        os.replace(temporary_path, database_path)
+        temporary_path = None
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
 
 
 class _PgCursor:
