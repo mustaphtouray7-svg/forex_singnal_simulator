@@ -134,7 +134,7 @@ class _PgConnection:
         # Search beyond leading whitespace/comments to avoid passing the
         # SQLite-only clause through to psycopg.
         translated_sql, ignore_count = re.subn(
-            r"(?is)\\bINSERT\\s+OR\\s+IGNORE\\s+INTO\\b",
+            r"(?is)\bINSERT\s+OR\s+IGNORE\s+INTO\b",
             "INSERT INTO",
             sql,
             count=1,
