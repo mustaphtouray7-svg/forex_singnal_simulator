@@ -67,14 +67,17 @@ def restore_sqlite_backup(
             temporary_path = Path(temporary_file.name)
         check = sqlite3.connect(str(temporary_path))
         try:
-            integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
-            if integrity != "ok":
-                raise ValueError("The uploaded file failed SQLite integrity checks.")
-            tables = {
-                row[0] for row in check.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
-            }
+            try:
+                integrity = check.execute("PRAGMA integrity_check").fetchone()[0]
+                if integrity != "ok":
+                    raise ValueError("The uploaded file failed SQLite integrity checks.")
+                tables = {
+                    row[0] for row in check.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    )
+                }
+            except sqlite3.DatabaseError as exc:
+                raise ValueError("The uploaded file failed SQLite integrity checks.") from exc
             required = {"analysis_records", "alerts", "paper_account", "paper_trades"}
             if not required.issubset(tables):
                 raise ValueError("The uploaded file is not a Forex Signal Lab database backup.")
