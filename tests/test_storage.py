@@ -176,3 +176,18 @@ class StorageTests(unittest.TestCase):
             self.instrument, "1d", stale_summary, "Stale", self.database_path
         )
         self.assertIsNone(result["alert_id"])
+
+    def test_sqlite_backup_can_restore_paper_account_and_history(self) -> None:
+        self.create_alert()
+        backup = storage.create_sqlite_backup_bytes(self.database_path)
+        restored_path = Path(self.temporary_directory.name) / "restored.sqlite3"
+        storage.restore_sqlite_backup(backup, restored_path)
+        self.assertEqual(len(storage.get_analysis_history(restored_path)), 1)
+        self.assertEqual(len(storage.get_alerts(restored_path)), 1)
+        self.assertEqual(storage.get_paper_account(restored_path)["balance"], 10_000)
+
+    def test_restore_rejects_non_database_file_without_changing_current_data(self) -> None:
+        self.create_alert()
+        with self.assertRaisesRegex(ValueError, "integrity checks"):
+            storage.restore_sqlite_backup(b"not a sqlite database", self.database_path)
+        self.assertEqual(len(storage.get_analysis_history(self.database_path)), 1)
