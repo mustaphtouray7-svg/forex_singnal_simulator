@@ -65,13 +65,13 @@ class _PgConnection:
                 (table,),
             )
             return cur
-        ignore_insert = bool(re.match(r"(?is)^INSERT\\s+OR\\s+IGNORE\\s+INTO\\s+", stripped))
+        ignore_insert = bool(re.match(r"(?is)^INSERT\s+OR\s+IGNORE\s+INTO\s+", stripped))
         if ignore_insert:
-            sql = re.sub(r"(?is)^INSERT\\s+OR\\s+IGNORE\\s+INTO", "INSERT INTO", sql, count=1)
+            sql = re.sub(r"(?is)^INSERT\s+OR\s+IGNORE\s+INTO", "INSERT INTO", sql, count=1)
             sql = sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
-        sql = re.sub(r"(?is)\\bINTEGER\\s+PRIMARY\\s+KEY\\b", "BIGSERIAL PRIMARY KEY", sql)
+        sql = re.sub(r"(?is)\bINTEGER\s+PRIMARY\s+KEY\b", "BIGSERIAL PRIMARY KEY", sql)
         sql = sql.replace("?", "%s")
-        is_insert = bool(re.match(r"(?is)^\\s*INSERT\\s+INTO\\s+", sql))
+        is_insert = bool(re.match(r"(?is)^\s*INSERT\s+INTO\s+", sql))
         if is_insert and " RETURNING " not in sql.upper():
             sql = sql.rstrip().rstrip(";") + " RETURNING id"
         cur = self._connection.cursor()
@@ -141,26 +141,6 @@ def _connect(path: Optional[Union[str, Path]] = None):
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-@contextmanager
-def _connect(path: Optional[Union[str, Path]] = None) -> Iterator[sqlite3.Connection]:
-    database_path = _database_path(path)
-    if str(database_path) != ":memory:":
-        database_path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(str(database_path), timeout=10)
-    try:
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        if str(database_path) != ":memory:":
-            connection.execute("PRAGMA journal_mode = WAL")
-        yield connection
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
 
 
 def init_db(
