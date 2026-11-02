@@ -31,8 +31,9 @@ runtime data is git-ignored.
 The Render deployment uses the `FOREX_SIGNAL_ACCESS_CODE` environment variable
 for a shared access-code gate. Keep the code private; this is a shared gate,
 not separate user accounts or role-based access control. The Settings & system
-page provides a manual SQLite backup download. Download backups regularly and
-store them privately.
+page provides a consistent SQLite backup download and a validated restore
+uploader. Download backups regularly and store them privately. Restoring a
+backup replaces the current temporary database with the uploaded copy.
 
 Render's free web service can sleep when idle. Its local filesystem is
 ephemeral, so saved alerts, paper trades, and settings may be lost when the
