@@ -1,5 +1,6 @@
 import logging
 import os
+import sqlite3
 from pathlib import Path
 from typing import Any, Dict
 
@@ -1059,31 +1060,41 @@ with settings_tab:
         )
     st.subheader("Storage and backups")
     if storage.using_postgres():
-        st.success("Shared PostgreSQL storage is configured. The dashboard and scheduled scanner use the same database.")
+        st.success("PostgreSQL storage is configured.")
         st.caption(
-            "The database provider controls backups and retention. Check its dashboard "
-            "regularly and export a backup before major changes. The database connection "
-            "string must remain private."
+            "The hosted recurring scanner is not configured. The database provider "
+            "controls backup and retention. Keep its connection string private."
         )
     else:
         st.warning(
-            "Temporary SQLite storage is active. On hosted free services, saved data can "
-            "be lost after a restart, sleep, or redeployment. Configure "
-            "FOREX_SIGNAL_DATABASE_URL to use shared PostgreSQL storage."
+            "Free Render storage is temporary. Data can disappear after a restart or "
+            "redeployment. Download a backup to your device regularly, then upload it "
+            "after a fresh deployment if you need to restore your records."
         )
         try:
-            _db_path = Path(storage.get_database_path())
-            if _db_path.exists():
-                st.download_button(
-                    "Download SQLite backup",
-                    data=_db_path.read_bytes(),
-                    file_name="forex_signal_lab_backup.sqlite3",
-                    mime="application/vnd.sqlite3",
-                    help="Keep this file somewhere private. It may contain your paper-trading history."
-                )
-            else:
-                st.info("The local database file is not available for download yet.")
-        except OSError as exc:
+            backup_data = storage.create_sqlite_backup_bytes()
+            st.download_button(
+                "Download database backup",
+                data=backup_data,
+                file_name="forex_signal_lab_backup.sqlite3",
+                mime="application/vnd.sqlite3",
+                help="Save this file somewhere private. It contains your analysis and paper-trading records."
+            )
+            uploaded_backup = st.file_uploader(
+                "Restore a database backup",
+                type=["sqlite3", "db", "sqlite"],
+                help="Restoring replaces the current local database with the uploaded backup."
+            )
+            if uploaded_backup is not None:
+                st.warning("Restoring will replace the current database on this temporary service.")
+                if st.button("Restore uploaded backup", type="secondary"):
+                    try:
+                        storage.restore_sqlite_backup(uploaded_backup.getvalue())
+                        st.success("Backup restored. Refresh the app to load the restored records.")
+                        st.rerun()
+                    except (OSError, ValueError, sqlite3.Error) as exc:
+                        st.error(f"Backup was not restored: {exc}")
+        except (OSError, RuntimeError) as exc:
             st.warning(f"Could not prepare the database backup: {exc}")
 
     st.subheader("Recent system events")
