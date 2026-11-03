@@ -111,6 +111,10 @@ def check_market_logic_and_csv() -> None:
 
 
 def check_live_pairs() -> None:
+    if os.environ.get("FOREX_VERIFY_LIVE_DATA") != "1":
+        record("Seven live FX pairs", "SKIP",
+               "Set FOREX_VERIFY_LIVE_DATA=1 to make optional Yahoo Finance network requests.")
+        return
     try:
         from market_data import fetch_prices
     except Exception as exc:
