@@ -9,10 +9,14 @@ connect to a broker or place real-money orders.
 From the project folder in PowerShell:
 
 ```powershell
-py -3.12 -m venv .venv
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m streamlit run app.py
 ```
+
+If the `python` command is not recognised, install Python 3.12 from python.org,
+select **Add python.exe to PATH**, close and reopen PowerShell, then retry.
 
 Before starting the app locally, set a private access code in that
 PowerShell window (choose your own value and do not commit it):
