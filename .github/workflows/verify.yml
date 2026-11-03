@@ -1,0 +1,26 @@
+name: Forex Signal Lab verification
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install application dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+      - name: Verify indicators, signals, backtesting, CSV and all seven live FX pairs
+        run: python verify_project.py
