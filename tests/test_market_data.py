@@ -52,6 +52,22 @@ class MarketDataTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unsupported data provider"):
             fetch_prices("unconfigured", "EURUSD=X", "1d", "1mo")
 
+    @patch("market_data.yf.download")
+    def test_usd_base_yahoo_symbols_keep_usd_quote_convention(self, download) -> None:
+        index = pd.date_range("2025-01-01", periods=1, tz="UTC")
+        candle = pd.DataFrame(
+            {"Open": [157.0], "High": [158.0], "Low": [156.0], "Close": [157.5]},
+            index=index,
+        )
+        for symbol in ("JPY=X", "CHF=X", "CAD=X"):
+            with self.subTest(symbol=symbol):
+                download.return_value = candle.copy()
+                result = fetch_prices("yfinance", symbol, "1d", "1mo")
+                self.assertEqual(float(result["Open"].iloc[0]), 157.0)
+                self.assertEqual(float(result["High"].iloc[0]), 158.0)
+                self.assertEqual(float(result["Low"].iloc[0]), 156.0)
+                self.assertEqual(float(result["Close"].iloc[0]), 157.5)
+
 
 if __name__ == "__main__":
     unittest.main()
