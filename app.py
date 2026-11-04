@@ -868,10 +868,46 @@ with backtest_tab:
 with settings_tab:
     st.subheader("Application settings")
     st.caption(
-        "These settings are saved in config/settings.json. Provider credentials "
-        "are not stored there."
+        "These settings are saved in config/settings.json or shared database "
+        "settings when a database is configured. Provider credentials are not stored there."
     )
     all_symbols = list(instruments_by_symbol)
+
+    # One-click recovery for the project's original seven-pair forex watchlist.
+    # This also repairs a previously saved mixed-market watchlist.
+    original_forex_watchlist = [
+        "EURUSD=X",
+        "GBPUSD=X",
+        "JPY=X",
+        "CHF=X",
+        "CAD=X",
+        "NZDUSD=X",
+        "AUDUSD=X",
+    ]
+    st.markdown("### Original forex watchlist")
+    st.caption(
+        "Restore the seven pairs this project was originally configured to analyze. "
+        "This changes the monitor watchlist only; the wider instrument catalogue remains available."
+    )
+    if st.button("Restore original seven forex pairs", key="restore-original-forex-watchlist"):
+        missing_symbols = [
+            symbol for symbol in original_forex_watchlist if symbol not in instruments_by_symbol
+        ]
+        if missing_symbols:
+            st.error(
+                "Cannot restore the original watchlist because these instruments "
+                "are missing from the registry: " + ", ".join(missing_symbols)
+            )
+        else:
+            restored_settings = dict(settings)
+            restored_settings["watchlist"] = original_forex_watchlist
+            try:
+                save_settings(restored_settings, DEFAULT_SETTINGS_PATH)
+                st.success("Original seven-pair forex watchlist restored.")
+                st.rerun()
+            except (OSError, ValueError) as exc:
+                LOGGER.exception("Original forex watchlist could not be restored")
+                st.error(f"Watchlist was not changed: {exc}")
     with st.form("settings-form"):
         edited_fast = st.number_input(
             "Fast EMA period",
